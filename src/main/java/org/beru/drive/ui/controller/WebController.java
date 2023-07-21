@@ -35,9 +35,8 @@ public class WebController extends Application implements Initializable {
                 try {
                     URL url = new URL(webEngine.getLocation());
                     HttpURLConnection con = (HttpURLConnection) url.openConnection();
-                    System.out.println(con.getResponseCode());
                     if(con.getResponseCode() == HttpURLConnection.HTTP_ACCEPTED && !success){
-                        ApplicationController.instance.listFiles();
+                        ApplicationController.instance.logged();
                         close();
                     }
                 } catch (IOException e) {

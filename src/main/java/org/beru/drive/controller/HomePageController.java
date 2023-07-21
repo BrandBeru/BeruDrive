@@ -13,18 +13,20 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
+import com.google.api.services.drive.model.About;
 import com.google.api.services.drive.model.File;
 import com.google.api.services.drive.model.FileList;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.beru.drive.domain.CredentialsDTO;
 import org.beru.drive.domain.FileDriveDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -128,13 +130,12 @@ public class HomePageController {
         }
     }
     @GetMapping(value = {"/list"}, produces = "application/json")
-    
     public ResponseEntity<List<FileDriveDTO>> getFiles(HttpServletResponse response){
         try {
             Credential cred = flow.loadCredential(USER_IDENTIFIER_KEY);
             Drive drive = new Drive.Builder(HTTP_TRANSPORT, JSON_FACTORY, cred).setApplicationName(APP_NAME).build();
 
-            FileList files = drive.files().list().setFields("files(id,name,webContentLink,thumbnailLink,modifiedTime)").execute();
+            FileList files = drive.files().list().setFields("files(id,name,webContentLink,thumbnailLink,modifiedTime, createdTime, size, mimeType,owners)").execute();
 
             List<FileDriveDTO> fileDriveDTOS = new ArrayList<>();
 
@@ -145,6 +146,10 @@ public class HomePageController {
                 item.setFile(file.getWebContentLink());
                 item.setThumbnailLink(file.getThumbnailLink());
                 item.setLastMod(file.getModifiedTime().toString());
+                item.setCreatedDate(file.getCreatedTime().toString());
+                item.setSize(String.valueOf(file.getSize()));
+                item.setType(file.getMimeType());
+                item.setOwners(file.getOwners());
                 fileDriveDTOS.add(item);
             });
 
@@ -155,8 +160,35 @@ public class HomePageController {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
-    @GetMapping("/home")
-    public ResponseEntity<?> greeting(){
-        return new ResponseEntity<>( HttpStatus.ACCEPTED);
+    @GetMapping(value = {"/get/{id}"})
+    public ResponseEntity<Drive.Files.Get> getFileById(HttpServletResponse response, @PathVariable String id){
+        try {
+            Credential cred = flow.loadCredential(USER_IDENTIFIER_KEY);
+            Drive drive = new Drive.Builder(HTTP_TRANSPORT, JSON_FACTORY, cred).setApplicationName(APP_NAME).build();
+
+            return new ResponseEntity<>(drive.files().get(id), HttpStatus.OK);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    @GetMapping(value = {"/home"}, produces = "application/json")
+    public ResponseEntity<CredentialsDTO> greeting(){
+        try {
+            Credential cred = flow.loadCredential(USER_IDENTIFIER_KEY);
+            Drive drive = new Drive.Builder(HTTP_TRANSPORT, JSON_FACTORY, cred).setApplicationName(APP_NAME).build();
+
+            About about = drive.about().get().setFields("user(displayName,emailAddress,photoLink)").execute();
+            About quota = drive.about().get().setFields("storageQuota(usage,limit)").execute();
+
+            CredentialsDTO credentialsDTO = new CredentialsDTO();
+            credentialsDTO.setEmail(about.getUser().getEmailAddress());
+            credentialsDTO.setName(about.getUser().getDisplayName());
+            credentialsDTO.setThumbnailLink(about.getUser().getPhotoLink());
+            credentialsDTO.setUseSpace(quota.getStorageQuota().getUsage());
+            credentialsDTO.setTotalSpace(quota.getStorageQuota().getLimit());
+            return new ResponseEntity<>(credentialsDTO, HttpStatus.ACCEPTED);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
